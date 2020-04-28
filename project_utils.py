@@ -6,6 +6,7 @@ import streamlit as st
 from scipy import sparse
 from surprise import SVD
 from surprise import SVDpp
+import plotly.express as px
 import matplotlib.pyplot as plt
 from surprise import KNNBaseline
 from surprise import BaselineOnly
@@ -281,10 +282,10 @@ def get_combo_model(train_reg, test_reg, model_train_evaluation, model_test_eval
     x_test = test_reg.drop(["User_ID", "Movie_ID", "Rating"], axis = 1)
     y_train = train_reg["Rating"]
     y_test = test_reg["Rating"]
-    train_result, test_result = train_test_xgboost(x_train, x_test, y_train, y_test, "XGB_BSL_KNN_MF")
+    train_result, test_result,error_table,fig = train_test_xgboost(x_train, x_test, y_train, y_test, "XGB_BSL_KNN_MF",error_table)
     model_train_evaluation["XGB_BSL_KNN_MF"] = train_result
     model_test_evaluation["XGB_BSL_KNN_MF"] = test_result
-    return model_train_evaluation,model_test_evaluation,error_table
+    return model_train_evaluation,model_test_evaluation,error_table,fig
 
 def get_second_combo_model(train_reg, test_reg, model_train_evaluation, model_test_evaluation, error_table):
     ############ Surprise KNN Baseline + SVD + SVDpp  ###############
@@ -292,8 +293,12 @@ def get_second_combo_model(train_reg, test_reg, model_train_evaluation, model_te
     x_test = test_reg[["KNNBaseline_User", "KNNBaseline_Item", "SVD", "SVDpp"]]
     y_train = train_reg["Rating"]
     y_test = test_reg["Rating"]
-    train_result, test_result = train_test_xgboost(x_train, x_test, y_train, y_test, "XGB_KNN_MF",error_table)
+    train_result, test_result,error_table,fig = train_test_xgboost(x_train, x_test, y_train, y_test, "XGB_KNN_MF",error_table)
     model_train_evaluation["XGB_KNN_MF"] = train_result
     model_test_evaluation["XGB_KNN_MF"] = test_result
-    return  model_train_evaluation,model_test_evaluation,error_table
+    return  model_train_evaluation,model_test_evaluation,error_table,fig
 
+def plot_model_evaluation(error_table):
+    error_table2 = error_table.drop(["Train MAPE", "Test MAPE"], axis = 1)    
+    fig = px.bar(data_frame=error_table2, x = "Model",y="Train RMSE",title="Train and Test RMSE and MAPE of all Models")
+    return fig

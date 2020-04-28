@@ -22,7 +22,8 @@ from project_utils import generate_csv,load_data, get_train_data,get_test_data,c
 from project_utils import get_train_sample_sparse, get_test_sample_sparse, get_train_reg, get_test_reg
 from project_utils import load_train_sparse_matrix, load_test_sparse_matrix, getAverageRatings, get_sample_sparse_matrix
 from project_utils import make_table, error_metrics, plot_importance, train_test_xgboost, get_ratings, get_error,run_surprise
-from project_utils import execute_train_test, get_surprise_base_model, get_surprise_knn_model, get_surprise_knn_item_model,get_xgb_bsl_knn,get_second_combo_model,get_combo_model,get_svdpp,get_matrix_factorization_svd
+from project_utils import execute_train_test, get_surprise_base_model, get_surprise_knn_model, get_surprise_knn_item_model
+from project_utils import get_xgb_bsl_knn,get_second_combo_model,get_combo_model,get_svdpp,get_matrix_factorization_svd,plot_model_evaluation
 sns.set_style("whitegrid")
 
 
@@ -271,31 +272,29 @@ elif page.lower() =="ai":
     with st.spinner("Execute model creation"):
         model_train_evaluation, model_test_evaluation, error_table, fig = execute_train_test(train_reg, test_reg,error_table)
         st.pyplot(fig)
-    st.balloons()
-    st.write("Model Completed")
+        st.balloons()
+    st.success("Model Completed")
 
     #########  Surprise BaselineOnly Model ##########
     with st.spinner("Surprise BaselineOnly Model Running"):
         model_train_evaluation, model_test_evaluation, error_table, fig = get_surprise_base_model(trainset, testset, train_reg, test_reg, model_train_evaluation, model_test_evaluation, error_table)
         st.pyplot(fig)
-    st.balloons()
-    st.write("Baseline Model Completed")
+        st.balloons()
+    st.success("Baseline Model Completed")
 
     ########## Surprise KNN-Baseline with User-User ##########
     with st.spinner("Surprise KNN Model for User-User Similarity Running"):
         model_train_evaluation, model_test_evaluation, error_table = get_surprise_knn_model(data, trainset, testset, train_reg, test_reg, model_train_evaluation, model_test_evaluation,error_table)
-    st.balloons()
-    st.write("KNN Model for User-User Similarity Completed")
+        st.balloons()
+    st.success("KNN Model for User-User Similarity Completed")
 
     ########## Surprise KNN-Baseline Item-Item Similarity ##########
     with st.spinner("Surprise KNN Model for Item-Item Similarity Running"):
         model_train_evaluation, model_test_evaluation, error_table = get_surprise_knn_item_model(data, trainset, testset,model_train_evaluation, model_test_evaluation,error_table)
-    st.balloons()
-    st.write("KNN Model for Item-Item Similarity Completed")
+        st.balloons()
+    st.success("KNN Model for Item-Item Similarity Completed")
 
 
-    st.header("Machine learning analysis data")
-    st.write(error_table)
 
     train_reg["KNNBaseline_User"] = model_train_evaluation["KNNBaseline_User"]["Prediction"]
     train_reg["KNNBaseline_Item"] = model_train_evaluation["KNNBaseline_Item"]["Prediction"]
@@ -309,8 +308,35 @@ elif page.lower() =="ai":
     with st.spinner("Execute xgb_bsl_knn model creation"):
         model_train_evaluation, model_test_evaluation, error_table, fig = get_xgb_bsl_knn(train_reg, test_reg,model_train_evaluation, model_test_evaluation,error_table)
         st.pyplot(fig)
-    st.balloons()
-    st.write("xgb_bsl_knn Hybrid Model Completed")
+        st.balloons()
+    st.success("xgb_bsl_knn Hybrid Model Completed")
+
+    with st.spinner("Matrix Factorization SVD model Running"):
+        model_train_evaluation, model_test_evaluation, error_table = get_matrix_factorization_svd(data, trainset, testset,model_train_evaluation, model_test_evaluation,error_table)
+        st.balloons()
+    st.success("Matrix Factorization SVD model  Completed")
+    
+    with st.spinner("Applying SVDpp with best parameters"):
+        model_train_evaluation, model_test_evaluation, error_table = get_svdpp(data, trainset, testset,model_train_evaluation, model_test_evaluation,error_table)
+        st.balloons()
+    st.success("SVDpp with best parameters Completed")
+    
+    with st.spinner("Combined model with best parameters running"):
+        model_train_evaluation, model_test_evaluation, error_table,fig = get_combo_model(train_reg,test_reg,model_train_evaluation, model_test_evaluation,error_table)
+        st.pyplot(fig)
+        st.balloons()
+    st.success("Combined model with best parameters created")
+
+    with st.spinner("2nd Combined model with best parameters running"):
+        model_train_evaluation, model_test_evaluation, error_table,fig = get_second_combo_model(train_reg,test_reg,model_train_evaluation, model_test_evaluation,error_table)
+        st.pyplot(fig)
+        st.balloons()
+    st.success("2nd Combined model with best parameters created")
+
+    st.header("Machine learning analysis data")
+    st.write(error_table)
+    fig = plot_model_evaluation(error_table)
+    st.plotly_chart(fig,use_container_width=True)
 
 ##################### ABOUT ######################################################
 elif page.lower() == "try ai":
