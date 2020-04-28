@@ -1,0 +1,4 @@
+streamlit
+scikit-surprise
+xgboost
+plotly
