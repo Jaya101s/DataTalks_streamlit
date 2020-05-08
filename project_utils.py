@@ -7,6 +7,7 @@ from scipy import sparse
 from surprise import SVD
 from surprise import SVDpp
 import plotly.express as px
+from joblib import dump,load
 import matplotlib.pyplot as plt
 from surprise import KNNBaseline
 from surprise import BaselineOnly
@@ -17,10 +18,11 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 FIG_WIDTH = 12
 FIG_HEIGHT = 8
+MODEL_PATH = "ml_models/"
 
 def generate_csv(netflix_rating_path):
     data = open(netflix_rating_path, mode = "w") 
-    files = ['Data/combined_data_4.txt']
+    files = ['Data/combined_data_1.txt']
     for file in files:
         print("Reading from file: "+str(file)+"...")
         with open(file) as f:  
@@ -151,6 +153,7 @@ def train_test_xgboost(x_train, x_test, y_train, y_test, model_name, error_table
     test_result = {"RMSE": rmse_test, "MAPE": mape_test, "Prediction": y_pred_test}
     fig = plot_importance(xgb, clf)
     error_table = make_table(model_name, rmse_train, mape_train, rmse_test, mape_test, error_table)
+    save_model(clf, model_name=model_name, store_path= MODEL_PATH+f"{model_name}.dat")
     return train_result, test_result, error_table, fig
 
 def get_ratings(predictions):
@@ -177,6 +180,7 @@ def run_surprise(algo, trainset, testset, model_name, error_table):
     test_rmse, test_mape = get_error(test_pred)
     test = {"RMSE": test_rmse, "MAPE": test_mape, "Prediction": test_predicted}
     error_table = make_table(model_name, train_rmse, train_mape, test_rmse, test_mape, error_table)
+    save_model(algo, model_name=model_name, store_path= MODEL_PATH+f"{model_name}.dat")
     return train, test ,error_table 
 
 def execute_train_test(train_reg, test_reg, error_table, model_train_evaluation = dict(), model_test_evaluation= dict()):
@@ -302,3 +306,81 @@ def plot_model_evaluation(error_table):
     error_table2 = error_table.drop(["Train MAPE", "Test MAPE"], axis = 1)    
     fig = px.bar(data_frame=error_table2, x = "Model",y="Train RMSE",title="Train and Test RMSE and MAPE of all Models")
     return fig
+
+
+def load_model(model_path):
+    if os.path.exists(model_path):
+        model = load(model_path)
+        print("model loaded")
+        return model
+    else:
+        print("model not found, please check path")
+        return None
+
+def save_model(model, model_name, store_path):
+    if os.path.exists(store_path):
+        print("overwriting model files")
+    dump(model,store_path)
+    print(f"saved {model_name} to {store_path}")
+
+def delete_model(model_path):
+    if os.path.exists(model_path):
+        os.remove(model_path)
+        print("deleted model")
+    else:
+        print("no model exists")
+
+@st.cache
+def get_movies():
+    movie_titles = pd.read_csv('Data/movie_titles.csv', encoding = 'ISO-8859-1', header = None, names = ['Id', 'Year', 'Name']).set_index('Id')
+    movie_titles.sort_values(by='Year',inplace=True)
+    movie_titles.dropna(axis=0, inplace=True)
+    movie_titles.Year = movie_titles.Year.astype(int)
+    return movie_titles
+
+@st.cache
+def movie_summary(df):
+    f = ['count','mean']
+    df_movie_summary = df.groupby('MovieID')['Ratings'].agg(f)
+    return df_movie_summary
+
+def get_movie_by_ratings(customer_id,rating,dataset,df_title):
+    cust_movies = dataset[(dataset['CustID'] == customer_id[0]) & (dataset['Ratings'] == rating)]
+    cust_movies = cust_movies.set_index('MovieID')
+    cust_movies = cust_movies.join(df_title)['Name']
+    return cust_movies
+
+@st.cache
+def drop_movies(df_movie_summary,q = 0.7):
+    df_movie_summary.index = df_movie_summary.index.map(int)
+    movie_benchmark = round(df_movie_summary['count'].quantile(q),0)
+    drop_movie_list = df_movie_summary[df_movie_summary['count'] < movie_benchmark].index
+    return drop_movie_list
+
+def recommend(movie_title, min_count,df_title,df_movie_summary,df_p):
+    print("For movie ({})".format(movie_title))
+    print("- Top 10 movies recommended based on Pearsons'R correlation - ")
+    i = int(df_title.index[df_title['Name'] == movie_title][0])
+    target = df_p[i]
+    similar_to_target = df_p.corrwith(target)
+    corr_target = pd.DataFrame(similar_to_target, columns = ['PearsonR'])
+    corr_target.dropna(inplace = True)
+    corr_target = corr_target.sort_values('PearsonR', ascending = False)
+    corr_target.index = corr_target.index.map(int)
+    corr_target = corr_target.join(df_title).join(df_movie_summary)[['PearsonR', 'Name', 'count', 'mean']]
+    return corr_target[corr_target['count']>min_count][:10].to_string(index=False)
+
+def recommend_enhanced(customer_id,algo,df_title,drop_movie_list,limit=10):
+    cust_movies = df_title.copy()
+    cust_movies = cust_movies.reset_index()
+    cust_movies = cust_movies[~cust_movies['Id'].isin(drop_movie_list)]
+    cust_movies['Estimate_Score'] = cust_movies['Id'].apply(lambda x: algo.predict(customer_id, x).est)
+    cust_movies = cust_movies.drop('Id', axis = 1)
+    cust_movies = cust_movies.sort_values('Estimate_Score', ascending=False)
+    return cust_movies.head(limit)
+
+
+def get_model_names():
+    models = os.listdir(MODEL_PATH)
+    modelist = [model.split('.')[0]  for model in models if 'dat' in model]
+    return modelist

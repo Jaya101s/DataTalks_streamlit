@@ -18,12 +18,7 @@ from sklearn.metrics import mean_squared_error
 from surprise.model_selection import GridSearchCV
 from sklearn.metrics.pairwise import cosine_similarity
 from surprise import SVD, SVDpp, KNNBaseline, BaselineOnly, Reader, Dataset
-from project_utils import generate_csv,load_data, get_train_data,get_test_data,changingLabels
-from project_utils import get_train_sample_sparse, get_test_sample_sparse, get_train_reg, get_test_reg
-from project_utils import load_train_sparse_matrix, load_test_sparse_matrix, getAverageRatings, get_sample_sparse_matrix
-from project_utils import make_table, error_metrics, plot_importance, train_test_xgboost, get_ratings, get_error,run_surprise
-from project_utils import execute_train_test, get_surprise_base_model, get_surprise_knn_model, get_surprise_knn_item_model
-from project_utils import get_xgb_bsl_knn,get_second_combo_model,get_combo_model,get_svdpp,get_matrix_factorization_svd,plot_model_evaluation
+from project_utils import *
 sns.set_style("whitegrid")
 
 
@@ -46,7 +41,7 @@ page = st.sidebar.selectbox("Choose a page", ["Homepage","Visualization", "EDA",
 st.title(page)
 
 # LOADING DATASET
-st.subheader(":heavy_check_mark: status check 1")
+st.subheader(":heavy_check_mark: status check")
 data_load_state = st.text(':hourglass: Loading data...')
 dataset = load_data(netflix_rating_path)
 data_load_state.text('Loading data...done!')
@@ -55,26 +50,33 @@ test_data = get_test_data(dataset)
 TrainUISparseData = load_train_sparse_matrix(train_data)
 TestUISparseData = load_test_sparse_matrix(test_data)
 
-st.subheader(":heavy_check_mark: Creating sparse matrix for train Data")
+
 rows,cols = TrainUISparseData.shape
 presentElements = TrainUISparseData.count_nonzero()
-st.write(f"Sparsity Of Train matrix : {(1-(presentElements/(rows*cols)))*100}% ")
 
-st.subheader(":heavy_check_mark: Creating sparse matrix for test Data")
+
+
 rows,cols = TestUISparseData.shape
 presentElements = TestUISparseData.count_nonzero()
-st.write(f"Sparsity Of Test matrix : {(1-(presentElements/(rows*cols)))*100}% ")
 
-st.subheader("ML training dataset")
+
+
 train_reg = get_train_reg(train_reg_data_path)
-st.write(train_reg.head())
 
-st.subheader("ML training dataset")
+
 test_reg = get_test_reg(test_reg_data_path)
-st.write(test_reg.head())
+
 
 ##################### HOMEPAGE ######################################################
 if page.lower() == 'homepage':
+    st.subheader(":heavy_check_mark: Creating sparse matrix for train Data")
+    st.write(f"Sparsity Of Train matrix : {(1-(presentElements/(rows*cols)))*100}% ")
+    st.subheader(":heavy_check_mark: Creating sparse matrix for test Data")
+    st.write(f"Sparsity Of Test matrix : {(1-(presentElements/(rows*cols)))*100}% ")
+    st.subheader("ML training dataset")
+    st.write(train_reg.head())
+    st.subheader("ML training dataset")
+    st.write(test_reg.head())
     if not os.path.isfile(netflix_rating_path):
         generate_csv(netflix_rating_path)
         st.write(":hourglass: loading data from file as dataframe...")
@@ -271,6 +273,10 @@ elif page.lower() =="ai":
     error_table = pd.DataFrame(columns = ["Model", "Train RMSE", "Train MAPE", "Test RMSE", "Test MAPE"])
     with st.spinner("Execute model creation"):
         model_train_evaluation, model_test_evaluation, error_table, fig = execute_train_test(train_reg, test_reg,error_table)
+        st.write(model_train_evaluation)
+        st.write("train data for xgboost_13")
+        st.write(model_test_evaluation)
+        st.write("data for xgboost_13")
         st.pyplot(fig)
         st.balloons()
     st.success("Model Completed")
@@ -338,12 +344,38 @@ elif page.lower() =="ai":
     fig = plot_model_evaluation(error_table)
     st.plotly_chart(fig,use_container_width=True)
 
-##################### ABOUT ######################################################
 elif page.lower() == "try ai":
-    Movie = st.sidebar.multiselect("Which do you like the most?",("Avengers","The Golden Compass","Harry Potter"))
-    director = st.sidebar.multiselect("Who is you fav director?",("Rv","Av","MP"))  
-    genres = st.sidebar.multiselect("which topic you love",("Action","Horror","Thriller"))
+    st.write(dataset.head(30))
+    st.text(dataset.shape)
+    df_title = get_movies()
+    df_movie_summary = movie_summary(dataset)
+    # Remove movie with too less reviews (they are relatively not popular)
+    drop_movie_list = drop_movies(df_movie_summary)
+    model_choice =  st.sidebar.selectbox("Select AI Model",get_model_names())
+    try:
+        st.sidebar.subheader("model selected " + model_choice)
+    except:
+        st.sidebar.subheader("model selected " + "XGBoost_13")
+    clf = load_model(MODEL_PATH+f"{model_choice}.dat")
+    st.sidebar.text("model loaded to use")
+    if not clf:
+        st.error("model not loaded")
+    else:
+        st.success("model is loaded")
+    customerids = dataset.CustID.sort_values().tolist() 
+    customer_id = st.multiselect("Customer ID",customerids)
+    for i in range(1,6):
+        st.subheader(f"customer id:{customer_id[0]} movies in {i} ratings")
+        st.write(get_movie_by_ratings(customer_id,i,dataset,df_title))
+    st.subheader("PREDICTION")
+    # try:
+    data= recommend_enhanced(customer_id[0],clf,df_title,drop_movie_list)
+    st.write(data)
+    # except Exception as e:
+    #     st.error(e)
+    
 
+##################### ABOUT ######################################################
 elif page.lower() == "about":
     pass
 

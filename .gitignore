@@ -3,3 +3,5 @@ __pycache__/
 *$py.class
 yolov3.weights
 yolov3.cfg
+Data/NetflixRatingsFull.csv
+Data/combined_data_1.txt
