@@ -2,3 +2,4 @@ streamlit
 scikit-surprise
 xgboost
 plotly
+fuzzywuzzy

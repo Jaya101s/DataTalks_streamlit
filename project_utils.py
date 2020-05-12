@@ -383,4 +383,4 @@ def recommend_enhanced(customer_id,algo,df_title,drop_movie_list,limit=10):
 def get_model_names():
     models = os.listdir(MODEL_PATH)
     modelist = [model.split('.')[0]  for model in models if 'dat' in model]
-    return modelist
+    return modelist[:5]

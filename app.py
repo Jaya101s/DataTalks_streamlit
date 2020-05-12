@@ -19,6 +19,7 @@ from surprise.model_selection import GridSearchCV
 from sklearn.metrics.pairwise import cosine_similarity
 from surprise import SVD, SVDpp, KNNBaseline, BaselineOnly, Reader, Dataset
 from project_utils import *
+from recommender import *
 sns.set_style("whitegrid")
 
 
@@ -345,8 +346,6 @@ elif page.lower() =="ai":
     st.plotly_chart(fig,use_container_width=True)
 
 elif page.lower() == "try ai":
-    st.write(dataset.head(30))
-    st.text(dataset.shape)
     df_title = get_movies()
     df_movie_summary = movie_summary(dataset)
     # Remove movie with too less reviews (they are relatively not popular)
@@ -355,22 +354,45 @@ elif page.lower() == "try ai":
     try:
         st.sidebar.subheader("model selected " + model_choice)
     except:
-        st.sidebar.subheader("model selected " + "XGBoost_13")
+        st.sidebar.subheader("model selected " + "SVDpp")
     clf = load_model(MODEL_PATH+f"{model_choice}.dat")
     st.sidebar.text("model loaded to use")
     if not clf:
         st.error("model not loaded")
     else:
         st.success("model is loaded")
-    customerids = dataset.CustID.sort_values().tolist() 
-    customer_id = st.multiselect("Customer ID",customerids)
-    for i in range(1,6):
-        st.subheader(f"customer id:{customer_id[0]} movies in {i} ratings")
-        st.write(get_movie_by_ratings(customer_id,i,dataset,df_title))
-    st.subheader("PREDICTION")
-    # try:
-    data= recommend_enhanced(customer_id[0],clf,df_title,drop_movie_list)
-    st.write(data)
+    pred_type = st.radio('Select a prediction type',("by title",'by CustId'))
+    if pred_type == 'by CustId':
+        customerids = dataset.CustID.sort_values().tolist() 
+        customer_id = st.multiselect("Customer ID",customerids)
+        if customer_id:
+            for i in range(1,6):
+                st.subheader(f"customer id:{customer_id[0]} movies in {i} ratings")
+                st.write(get_movie_by_ratings(customer_id,i,dataset,df_title))
+            st.subheader("PREDICTION")
+            # try:
+            data= recommend_enhanced(customer_id[0],clf,df_title,drop_movie_list)
+            st.write(data)
+    else:
+        df_movies = load_movie_data()
+        df_ratings = load_ratings_data()
+        movie_user_mat = get_movies_user_matrix(df_movies,df_ratings)
+        mapper = movie_to_idx(df_movies,movie_user_mat)
+        train_data = get_movie_user_sparse_mat(movie_user_mat)
+        model= create_model(train_data)
+        fav_movie = st.text_input("Movie Title that you like","Iron Man")
+        st.text("please write movie name in Title case")
+        size = st.slider('Select number of recommendations',5,25,10)
+        results = make_recommendation(model_knn=model, data=train_data,fav_movie=fav_movie, mapper=mapper, n_recommendations=size)
+        if results:
+            st.header("Here are your recommendations")
+            st.subheader("similar names movies")
+            st.write(results[0])
+            st.subheader('Your recommendations')
+            for item in results[1]:
+                st.write(item.get('movie'))
+        else:
+            st.error("No data found related to movie name")
     # except Exception as e:
     #     st.error(e)
     
